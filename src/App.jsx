@@ -1,68 +1,37 @@
-import { useState, useEffect} from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-export default function App() {
+import Auth from "./Auth";
+import Dashboard from "./Dashboard";
 
-    const [todos, setTodos] = useState([]);
-    const [inpVal, setInpVal] = useState("");
+function App() {
+  const [session, setSession] = useState(null);
 
+  useEffect(() => {
+    // 1. Hozirgi sessiyani tekshirish (sahifa yangilanganda kerak)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
-    useEffect(() => {
-        async function fetchData() {
-        const { data, error } = await supabase
-            .from('todos')
-            .select('*');
-       if (error) {
-      console.log("Xato bo'ldi:", error.message);
-    } else {
-      setTodos(data); 
-    }
-}
-fetchData();
-}, []);
+    // 2. Kirish-chiqishni poylash (onAuthStateChange)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
 
-    async function addTodo() {
-        const {data, error} = await supabase
-        .from('todos')
-        .insert([{title: inpVal, is_complete: false}])
-        .select()
+    return () => subscription.unsubscribe();
+  }, []);
 
-        if (error) {
-            console.log("Xato bo'ldi:", error.message);
-        } else {
-            setTodos([...todos, data[0]]);
-        }
-    }
+  console.log("Joriy sessiya:", session);
 
-    async function deleteTodo(id) {
-  const { error } = await supabase
-    .from('todos')
-    .delete()
-    .eq('id', id); // Faqat shu ID-ga teng bo'lgan qatorni o'chir
-
-  if (error) {
-    console.log("O'chirishda xato:", error.message);
-  } else {
-    // UI-ni yangilash: o'chirilgan vazifani todos massividan olib tashlaymiz
-    setTodos(todos.filter(todo => todo.id !== id));
-  }
+  return (
+    <div className="App">
+      {/* Agar sessiya bo'lmasa Loginni ko'rsat, bo'lsa Dashboardni */}
+      {!session ? (
+        <Auth />
+      ) : (
+        <Dashboard user={session.user} />
+      )}
+    </div>
+  );
 }
 
-    return (
-        <div>
-            <h1>Todo List</h1>
-            <div>
-                <input type="text" placeholder="New todo" onChange={(e) => setInpVal(e.target.value)}/>
-                <button onClick={addTodo}>Add Todo</button>
-            </div>
-            <ul>
-                {todos.map((todo) => (
-                    <li key={todo.id}>{todo.title}
-                        <button onClick={() => deleteTodo(todo.id)} style={{ marginLeft: '10px', color: 'red' }}>
-                            O'chirish
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-}
+export default App;
